@@ -1,0 +1,33 @@
+# Configuration du bot. Les montants sont dans la devise de cotation (EUR pour BTC/EUR).
+exchange: binance
+asset_class: crypto            # crypto | stock
+symbols: ["BTC/EUR"]
+timeframe: "1h"
+db_path: data/market.db
+state_path: data/state.json
+sandbox: true                  # true = testnet Binance (aucun argent réel). Passer à false en connaissance de cause.
+
+strategy: trend_combo
+strategy_params:
+  ema_fast: 20
+  ema_slow: 50
+  rsi_period: 14
+  rsi_max_entry: 70
+  min_votes: 3
+  allow_short: false           # spot = long only
+
+risk:
+  capital: 100.0               # capital de départ (EUR)
+  risk_per_trade: 0.01         # 1 % du capital risqué par position (règle n°1)
+  max_position_pct: 0.5        # jamais plus de 50 % du capital sur une position
+  max_daily_loss_pct: 0.04     # kill switch : arrêt si perte journalière > 4 %
+  atr_stop_mult: 2.0           # stop = 2 x ATR
+  fee_rate: 0.001              # 0,10 % taker Binance
+  slippage: 0.0005             # 0,05 % de slippage modélisé
+  min_notional: 10.0           # ordre minimum Binance (~5-10 EUR/USDT selon la paire)
+  kelly_fraction: 0.5          # demi-Kelly (jamais Kelly plein)
+
+walkforward:
+  train_bars: 2000             # ~83 jours en 1h
+  test_bars: 500               # ~21 jours en 1h
+  metric: sharpe

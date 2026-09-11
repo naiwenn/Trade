@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tradebot · Trade Republic</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ctext y=%2713%27 font-size=%2713%27%3E📈%3C/text%3E%3C/svg%3E">
+<script src="/static/chart.umd.js"></script>
+<style>
+  :root { --bg:#0f1218; --panel:#171c26; --line:#2a3242; --txt:#e6e9ef; --muted:#8a93a6; --up:#2ecc71; --down:#e74c3c; --warn:#f1c40f; --accent:#4f8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0 12px 0 0; }
+  .pill { padding:3px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:#0f1218; }
+  .pill.ok { border-color:var(--up); color:var(--up); } .pill.bad { border-color:var(--down); color:var(--down); } .pill.warn { border-color:var(--warn); color:var(--warn); }
+  nav { display:flex; gap:4px; padding:8px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  nav button { background:none; border:1px solid transparent; color:var(--muted); padding:6px 12px; border-radius:6px; cursor:pointer; }
+  nav button.active { color:var(--txt); border-color:var(--line); background:var(--panel); }
+  main { padding:16px; max-width:1400px; margin:0 auto; }
+  section.tab { display:none; } section.tab.active { display:block; }
+  .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  .kpi { font-size:22px; font-weight:600; } .kpi small { font-size:12px; color:var(--muted); font-weight:400; margin-left:6px; }
+  .up { color:var(--up); } .down { color:var(--down); } .muted { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); } th { color:var(--muted); font-weight:500; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  input, select, button.btn { background:#0f1218; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:7px 10px; font:inherit; }
+  input[type=number] { width:110px; }
+  button.btn { cursor:pointer; } button.btn:hover { border-color:var(--accent); }
+  button.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.btn.danger { background:var(--down); border-color:var(--down); color:#fff; }
+  button.btn.small { padding:3px 8px; font-size:12px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+  label.inline { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+  .banner { padding:10px 12px; border-radius:8px; margin-bottom:12px; border:1px solid; }
+  .banner.warn { border-color:var(--warn); color:var(--warn); background:rgba(241,196,15,.06); }
+  .banner.bad { border-color:var(--down); color:var(--down); background:rgba(231,76,60,.06); }
+  .banner.ok { border-color:var(--up); color:var(--up); background:rgba(46,204,113,.06); }
+  .journal { max-height:360px; overflow:auto; font-family:ui-monospace, Menlo, monospace; font-size:12px; }
+  .journal div { padding:3px 0; border-bottom:1px dashed var(--line); }
+  .journal .k { display:inline-block; min-width:52px; color:var(--muted); }
+  canvas { max-height:340px; }
+  .sig { font-weight:700; padding:2px 8px; border-radius:6px; }
+  .sig.buy { background:rgba(46,204,113,.15); color:var(--up); } .sig.sell { background:rgba(231,76,60,.15); color:var(--down); } .sig.hold { background:rgba(138,147,166,.15); color:var(--muted); }
+  .results { position:absolute; background:var(--panel); border:1px solid var(--line); border-radius:8px; z-index:10; max-height:260px; overflow:auto; width:min(520px, 90vw); }
+  .results div { padding:7px 10px; cursor:pointer; } .results div:hover { background:#0f1218; }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:20; }
+  .modal.open { display:flex; } .modal .card { width:min(480px, 92vw); }
+  pre { white-space:pre-wrap; font-size:12px; color:var(--muted); max-height:240px; overflow:auto; }
+  @media (max-width:700px) { main { padding:10px; } .kpi { font-size:18px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tradebot · Trade Republic</h1>
+  <span id="pill-mcp" class="pill">MCP…</span>
+  <span id="pill-auth" class="pill">auth…</span>
+  <span id="pill-mode" class="pill">mode…</span>
+  <span id="pill-ap" class="pill">autopilote…</span>
+  <span id="pill-eq" class="pill">—</span>
+  <span style="flex:1"></span>
+  <button class="btn small" onclick="refreshAll()">↻ Rafraîchir</button>
+</header>
+<nav>
+  <button class="active" data-tab="dash">Tableau de bord</button>
+  <button data-tab="inst">Instrument & backtest</button>
+  <button data-tab="auto">Autopilote & risque</button>
+  <button data-tab="orders">Ordres & plans d'épargne</button>
+  <button data-tab="help">Aide</button>
+</nav>
+<main>
+  <div id="banner"></div>
+
+  <!-- ============ TABLEAU DE BORD ============ -->
+  <section class="tab active" id="tab-dash">
+    <div class="grid">
+      <div class="card">
+        <h2>Authentification Trade Republic</h2>
+        <div id="auth-box" class="muted">…</div>
+        <div class="row">
+          <input id="code2fa" placeholder="code SMS / app (4 chiffres)" maxlength="8" inputmode="numeric">
+          <button class="btn primary" onclick="send2fa()">Valider le code</button>
+          <button class="btn" onclick="probeAuth()">Demander un code</button>
+        </div>
+        <p class="muted" style="margin:6px 0 0">Le numéro et le PIN sont dans le <code>.env</code> du serveur MCP. Le code 2FA est demandé à la première requête, puis la session est rafraîchie automatiquement.</p>
+      </div>
+      <div class="card">
+        <h2>Capital & risque</h2>
+        <div class="kpi" id="kpi-equity">—<small>équité</small></div>
+        <div id="kpi-day" class="muted">—</div>
+        <div id="kpi-risk" class="muted" style="margin-top:6px">—</div>
+      </div>
+      <div class="card">
+        <h2>Portefeuille <span id="pf-mode" class="muted"></span></h2>
+        <div id="portfolio">…</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>Journal</h2>
+      <div id="journal" class="journal">…</div>
+    </div>
+  </section>
+
+  <!-- ============ INSTRUMENT ============ -->
+  <section class="tab" id="tab-inst">
+    <div class="card" style="position:relative">
+      <div class="row">
+        <input id="search" placeholder="Rechercher : nom, ticker ou ISIN (ex. Air Liquide, FR0000120073, Bitcoin)" style="flex:1; min-width:240px" autocomplete="off">
+        <select id="range">
+          <option value="3m">3 mois</option><option value="6m">6 mois</option><option value="1y" selected>1 an</option><option value="5y">5 ans</option><option value="max">max</option>
+        </select>
+        <button class="btn primary" onclick="loadInstrument()">Analyser</button>
+        <button class="btn" onclick="addToWatch()">+ Watchlist</button>
+      </div>
+      <div id="search-results" class="results" style="display:none"></div>
+      <div id="inst-head" class="muted">Sélectionnez un instrument. ISIN utiles : FR0000120073 Air Liquide · IE00B4L5Y983 iShares MSCI World · US0378331005 Apple · XF000BTC0017 Bitcoin (TR).</div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card" style="grid-column:1/-1"><h2>Prix, EMA & Bollinger</h2><canvas id="chart-price"></canvas></div>
+      <div class="card"><h2>Signal tradebot (vote d'indicateurs)</h2><div id="inst-signal">—</div></div>
+      <div class="card"><h2>Analyse technique (serveur MCP)</h2><div id="inst-analysis">—</div></div>
+      <div class="card"><h2>Risque & taille de position</h2><div id="inst-risk">—</div></div>
+      <div class="card"><h2>News, sentiment, fondamentaux</h2><div id="inst-news"><button class="btn small" onclick="loadNews()">Charger</button></div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>Backtest (exécution à l'open suivant, 1 € par ordre, stop ATR)</h2>
+      <div class="row">
+        <label class="inline">EMA rapide <input type="number" id="bt-fast" value="20" min="3"></label>
+        <label class="inline">EMA lente <input type="number" id="bt-slow" value="50" min="5"></label>
+        <label class="inline">votes min <input type="number" id="bt-votes" value="3" min="1" max="5"></label>
+        <label class="inline"><input type="checkbox" id="bt-wf"> walk-forward (train <input type="number" id="bt-train" value="120" style="width:70px"> / test <input type="number" id="bt-test" value="40" style="width:70px"> barres)</label>
+        <button class="btn primary" onclick="runBacktest()">Lancer</button>
+      </div>
+      <div id="bt-metrics" class="muted">—</div>
+      <canvas id="chart-equity"></canvas>
+      <div id="bt-trades"></div>
+    </div>
+  </section>
+
+  <!-- ============ AUTOPILOTE ============ -->
+  <section class="tab" id="tab-auto">
+    <div class="grid">
+      <div class="card">
+        <h2>Mode d'exécution</h2>
+        <div class="row">
+          <label class="inline"><input type="radio" name="mode" value="paper" onchange="setMode(true)"> Papier (simulation, aucun ordre envoyé)</label>
+        </div>
+        <div class="row">
+          <label class="inline"><input type="radio" name="mode" value="live" onchange="confirmLive()"> RÉEL — ordres envoyés à Trade Republic avec votre argent</label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <label class="inline">capital papier <input type="number" id="paper-cash" value="100" step="10"></label>
+          <button class="btn small" onclick="resetPaper()">Réinitialiser le portefeuille papier</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn danger" id="btn-halt" onclick="toggleHalt()">…</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Règles de risque</h2>
+        <div class="row"><label class="inline">capital de référence (€) <input type="number" id="r-capital" step="10"></label></div>
+        <div class="row"><label class="inline">risque / position (%) <input type="number" id="r-risk" step="0.5" min="0.5" max="5"></label></div>
+        <div class="row"><label class="inline">position max (% capital) <input type="number" id="r-maxpos" step="5" min="5" max="100"></label></div>
+        <div class="row"><label class="inline">perte journalière max → kill switch (%) <input type="number" id="r-daily" step="0.5" min="1" max="20"></label></div>
+        <div class="row"><label class="inline">stop = <input type="number" id="r-atr" step="0.5" min="0.5" max="6"> × ATR</label></div>
+        <div class="row"><label class="inline"><input type="checkbox" id="r-fees"> inclure les 2 € de frais aller-retour dans le budget de risque</label></div>
+        <div class="row"><label class="inline"><input type="checkbox" id="r-trail"> stop suiveur (remonte le stop avec le prix, jamais ne le baisse)</label></div>
+        <div class="row"><label class="inline">positions simultanées max <input type="number" id="r-maxn" min="1" max="10"></label></div>
+        <button class="btn primary" onclick="saveRisk()">Enregistrer</button>
+      </div>
+      <div class="card">
+        <h2>Autopilote</h2>
+        <div class="row"><label class="inline"><input type="checkbox" id="ap-enabled"> activé</label></div>
+        <div class="row"><label class="inline">cycle toutes les <input type="number" id="ap-interval" min="5" step="5"> min</label></div>
+        <div class="row"><label class="inline">historique <select id="ap-range"><option value="6m">6 mois</option><option value="1y">1 an</option><option value="5y">5 ans</option></select></label></div>
+        <div class="row">
+          <label class="inline">EMA <input type="number" id="ap-fast" style="width:70px"> / <input type="number" id="ap-slow" style="width:70px"></label>
+          <label class="inline">votes min <input type="number" id="ap-votes" style="width:60px" min="1" max="5"></label>
+          <label class="inline">RSI max entrée <input type="number" id="ap-rsi" style="width:70px"></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" onclick="saveAutopilot()">Enregistrer</button>
+          <button class="btn" onclick="runCycle()">Exécuter un cycle maintenant</button>
+        </div>
+        <div id="ap-status" class="muted" style="margin-top:8px">—</div>
+      </div>
+      <div class="card">
+        <h2>Watchlist (instruments suivis par l'autopilote)</h2>
+        <div id="watchlist">—</div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h2>État de l'auto-trading par instrument</h2>
+        <div id="ap-table" class="muted">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ORDRES ============ -->
+  <section class="tab" id="tab-orders">
+    <div class="grid">
+      <div class="card">
+        <h2>Ordre manuel</h2>
+        <div class="row"><input id="o-isin" placeholder="ISIN (12 caractères)" maxlength="12" style="width:170px">
+          <select id="o-side"><option value="buy">Achat</option><option value="sell">Vente</option></select>
+          <input type="number" id="o-qty" placeholder="quantité" min="0" step="1">
+          <select id="o-mode"><option value="market">au marché</option><option value="limit">limite</option></select>
+          <input type="number" id="o-limit" placeholder="prix limite" step="0.01" style="display:none">
+          <button class="btn primary" onclick="placeOrder()">Passer l'ordre</button></div>
+        <p class="muted">Frais Trade Republic : 1 € par ordre. En mode papier, l'ordre est simulé.</p>
+      </div>
+      <div class="card">
+        <h2>Ordres</h2>
+        <div id="orders">…</div>
+      </div>
+      <div class="card">
+        <h2>Plans d'épargne (DCA, 0 € de frais — le meilleur outil avec 100 €)</h2>
+        <div class="row"><input id="p-isin" placeholder="ISIN" maxlength="12" style="width:170px">
+          <input type="number" id="p-amount" placeholder="€ / période" min="1" step="1">
+          <select id="p-int"><option value="weekly">hebdo</option><option value="biweekly">bimensuel</option><option value="monthly" selected>mensuel</option><option value="quarterly">trimestriel</option></select>
+          <button class="btn primary" onclick="createPlan()">Créer</button></div>
+        <div id="plans">…</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ AIDE ============ -->
+  <section class="tab" id="tab-help">
+    <div class="card">
+      <h2>Comment ça marche</h2>
+      <ol>
+        <li><b>Serveur MCP Trade Republic</b> (Node, <code>vendor/trade-republic-mcp-server</code>) : dialogue avec l'API non officielle de Trade Republic (WebSocket, 2FA). Vos identifiants restent dans son <code>.env</code>.</li>
+        <li><b>Tradebot (Python)</b> : indicateurs, stratégie par vote, backtest sans look-ahead, walk-forward, VaR/ES, dimensionnement à fraction fixe avec les frais fixes de Trade Republic, kill switch.</li>
+        <li><b>Cette interface</b> : appelle les outils MCP, affiche, et fait tourner l'autopilote (un cycle par intervalle, uniquement sur bougies closes, uniquement marché ouvert).</li>
+      </ol>
+      <h2>Parcours conseillé avec 100 €</h2>
+      <ol>
+        <li>Rester en <b>mode papier</b> plusieurs semaines. Regarder le journal et la courbe d'équité.</li>
+        <li>Backtester puis <b>walk-forward</b> sur chaque instrument de la watchlist : si le ratio OOS/IS est faible, la stratégie surapprend.</li>
+        <li>Comprendre les frais : 1 € par ordre = 2 € l'aller-retour = <b>2 % de 100 €</b>. Un trade doit gagner plus de 2 % rien que pour être à l'équilibre. Avec ce capital, les <b>plans d'épargne à 0 €</b> sur un ETF monde sont mathématiquement bien plus favorables que le trading actif.</li>
+        <li>Passer en réel seulement avec un montant que vous acceptez de perdre intégralement, l'autopilote sur 1 ou 2 instruments, kill switch à 4 %.</li>
+      </ol>
+      <p class="muted">API non officielle : usage possiblement contraire aux CGU de Trade Republic, compte suspendable. Aucun conseil en investissement. Fiscalité française : PFU 30 % (actions/ETF ; crypto au-delà de 305 € de cessions/an, formulaire 2086).</p>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal"><div class="card"><h2 id="modal-title">Confirmer</h2><div id="modal-body"></div><div class="row" style="justify-content:flex-end; margin-top:10px"><button class="btn" onclick="closeModal(false)">Annuler</button><button class="btn danger" id="modal-ok" onclick="closeModal(true)">Confirmer</button></div></div></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 2) => (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v, d = 1) => (v === null || v === undefined || isNaN(v)) ? '—' : (v * 100).toFixed(d) + ' %';
+const cls = (v) => v > 0 ? 'up' : v < 0 ? 'down' : '';
+let STATUS = null, CUR = null, priceChart = null, eqChart = null, modalResolve = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const msg = data.detail || r.statusText; if (r.status === 401) { showBanner('warn', '🔐 ' + msg); } throw new Error(msg); }
+  return data;
+}
+function showBanner(kind, text) { $('banner').innerHTML = text ? `<div class="banner ${kind}">${text}</div>` : ''; }
+function openModal(title, body) { $('modal-title').textContent = title; $('modal-body').innerHTML = body; $('modal').classList.add('open'); return new Promise(res => modalResolve = res); }
+function closeModal(ok) { $('modal').classList.remove('open'); if (modalResolve) modalResolve(ok); }
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active')); b.classList.add('active');
+  document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active')); $('tab-' + b.dataset.tab).classList.add('active');
+  if (b.dataset.tab === 'orders') { loadOrders(); loadPlans(); }
+});
+
+// ---------------------------------------------------------------- statut
+async function refreshStatus() {
+  try { STATUS = await api('/api/status'); } catch (e) { $('pill-mcp').className = 'pill bad'; $('pill-mcp').textContent = 'backend injoignable'; return; }
+  const s = STATUS;
+  $('pill-mcp').className = 'pill ' + (s.mcp_tools ? 'ok' : 'bad'); $('pill-mcp').textContent = s.mcp_tools ? `MCP ✓ ${s.mcp_tools} outils` : 'MCP injoignable';
+  const a = s.auth.status;
+  $('pill-auth').className = 'pill ' + (a === 'ok' ? 'ok' : a === '2fa_required' ? 'warn' : 'bad');
+  $('pill-auth').textContent = a === 'ok' ? 'TR connecté' : a === '2fa_required' ? 'code 2FA requis' : a === 'mcp_down' ? 'TR : serveur MCP arrêté' : a === 'unknown' ? 'TR : non testé' : 'TR : erreur';
+  $('pill-mode').className = 'pill ' + (s.dry_run ? 'ok' : 'bad'); $('pill-mode').textContent = s.dry_run ? 'PAPIER' : 'RÉEL';
+  $('pill-ap').className = 'pill ' + (s.halted ? 'bad' : s.autopilot.enabled ? 'ok' : ''); $('pill-ap').textContent = s.halted ? 'KILL SWITCH' : s.autopilot.enabled ? `autopilote ON (${s.autopilot.interval_min} min)` : 'autopilote OFF';
+  $('pill-eq').textContent = s.equity != null ? fmt(s.equity) + ' €' : '—';
+  $('auth-box').innerHTML = a === '2fa_required' ? `<span class="warn">${s.auth.message}</span>` : a === 'ok' ? '<span class="up">Session Trade Republic active.</span>' : a === 'mcp_down' ? `<span class="down">Serveur MCP injoignable (${s.mcp_url}). Lancez <code>npm start</code> dans vendor/trade-republic-mcp-server.</span>` : (s.auth.message || 'Cliquez sur « Demander un code » pour ouvrir la session (SMS / app Trade Republic).');
+  $('kpi-equity').innerHTML = (s.equity != null ? fmt(s.equity) + ' €' : '—') + '<small>équité ' + (s.dry_run ? 'papier' : 'réelle') + '</small>';
+  const dd = (s.equity && s.day_start_equity) ? s.equity / s.day_start_equity - 1 : null;
+  $('kpi-day').innerHTML = dd == null ? 'variation du jour : —' : `variation du jour : <span class="${cls(dd)}">${pct(dd, 2)}</span> (kill switch à −${(s.risk.max_daily_loss_pct * 100).toFixed(1)} %)`;
+  const r = s.risk;
+  $('kpi-risk').innerHTML = `risque/position ${(r.risk_per_trade * 100).toFixed(1)} % = ${fmt(r.capital * r.risk_per_trade)} € · position max ${(r.max_position_pct * 100).toFixed(0)} % · stop ${r.atr_stop_mult}×ATR · frais 2 € l'aller-retour = <b>${pct(2 / r.capital, 1)}</b> du capital`;
+  // formulaires
+  $('r-capital').value = r.capital; $('r-risk').value = (r.risk_per_trade * 100).toFixed(1); $('r-maxpos').value = r.max_position_pct * 100; $('r-daily').value = r.max_daily_loss_pct * 100; $('r-atr').value = r.atr_stop_mult; $('r-fees').checked = !!r.fees_in_risk; $('r-trail').checked = r.trailing_stop !== false; $('r-maxn').value = r.max_positions || 3;
+  const inst = s.instruments || {}; const keys = Object.keys(inst);
+  $('ap-table').innerHTML = keys.length ? '<table><tr><th>Instrument</th><th>Signal</th><th class="num">Prix</th><th class="num">Stop</th><th>Position</th><th>Dernière action</th><th class="muted">Quand</th></tr>' + keys.map(k => { const x = inst[k]; return `<tr><td>${x.name || k}<br><span class="muted">${k}</span></td><td>${x.signal == null ? '—' : `<span class="sig ${x.signal > 0 ? 'buy' : x.signal < 0 ? 'sell' : 'hold'}">${x.signal > 0 ? 'LONG' : x.signal < 0 ? 'SHORT' : 'NEUTRE'}</span>`}</td><td class="num">${fmt(x.price)}</td><td class="num">${fmt(x.stop)}</td><td>${x.held ? '<span class="up">en position</span>' : '<span class="muted">cash</span>'}</td><td>${x.status || ''}</td><td class="muted">${x.ts ? new Date(x.ts).toLocaleString('fr-FR') : ''}</td></tr>`; }).join('') + '</table>' : 'aucun cycle exécuté — activez l\'autopilote ou cliquez « Exécuter un cycle maintenant »';
+  const nextIn = s.autopilot.enabled && s.last_cycle ? Math.max(0, Math.round((new Date(s.last_cycle).getTime() + s.autopilot.interval_min * 60000 - Date.now()) / 60000)) : null;
+  $('ap-status').textContent = 'dernier cycle : ' + (s.last_cycle ? new Date(s.last_cycle).toLocaleString('fr-FR') : 'jamais') + (nextIn != null ? ` · prochain dans ~${nextIn} min` : '') + (s.last_stop_check ? ' · stops vérifiés ' + new Date(s.last_stop_check).toLocaleTimeString('fr-FR') : '');
+  const ap = s.autopilot; $('ap-enabled').checked = ap.enabled; $('ap-interval').value = ap.interval_min; $('ap-range').value = ap.range; $('ap-fast').value = ap.params.ema_fast; $('ap-slow').value = ap.params.ema_slow; $('ap-votes').value = ap.params.min_votes; $('ap-rsi').value = ap.params.rsi_max_entry;
+  document.querySelector(`input[name=mode][value=${s.dry_run ? 'paper' : 'live'}]`).checked = true;
+  $('btn-halt').textContent = s.halted ? 'Réarmer le kill switch' : 'ARRÊT D\'URGENCE (kill switch)';
+  $('watchlist').innerHTML = s.watchlist.length ? '<table>' + s.watchlist.map(w => `<tr><td>${w.name || ''}</td><td class="muted">${w.isin}</td><td class="num"><button class="btn small" onclick="selectIsin('${w.isin}','${(w.name || '').replace(/'/g, '')}')">voir</button> <button class="btn small" onclick="delWatch('${w.isin}')">✕</button></td></tr>`).join('') + '</table>' : '<span class="muted">vide — ajoutez des instruments depuis l\'onglet Instrument</span>';
+  if (!s.dry_run) showBanner('bad', '⚠️ MODE RÉEL : les ordres (manuels et autopilote) sont envoyés à Trade Republic.'); else if (s.halted) showBanner('bad', '⛔ Kill switch déclenché : autopilote arrêté. Réarmez-le dans l\'onglet Autopilote après analyse.'); else showBanner('', '');
+}
+async function refreshPortfolio() {
+  try {
+    const p = await api('/api/portfolio');
+    $('pf-mode').textContent = p.dry_run ? '(papier)' : '(réel)';
+    let html = `<div>cash <b>${fmt(p.cash)} €</b> · équité <b>${fmt(p.equity)} €</b></div>`;
+    if (p.positions.length) html += '<table><tr><th>Actif</th><th class="num">Qté</th><th class="num">PRU</th><th class="num">Cours</th><th class="num">P&L</th><th class="num">Stop</th></tr>' + p.positions.map(x => `<tr><td>${x.name}<br><span class="muted">${x.isin}</span></td><td class="num">${fmt(x.qty, 4)}</td><td class="num">${fmt(x.entry)}</td><td class="num">${fmt(x.price)}</td><td class="num ${cls(x.pnl)}">${fmt(x.pnl)} €</td><td class="num">${fmt(x.stop)}</td></tr>`).join('') + '</table>';
+    else html += '<div class="muted">aucune position</div>';
+    $('portfolio').innerHTML = html;
+  } catch (e) { $('portfolio').innerHTML = `<span class="muted">${e.message}</span>`; }
+}
+async function refreshJournal() {
+  const j = await api('/api/journal?limit=120');
+  $('journal').innerHTML = j.length ? j.map(e => `<div><span class="muted">${new Date(e.ts).toLocaleString('fr-FR')}</span> <span class="k">[${e.kind}]</span> ${e.msg}${e.warnings ? ' <span class="warn">' + e.warnings.join(' · ') + '</span>' : ''}</div>`).join('') : '<span class="muted">rien pour l\'instant</span>';
+}
+async function refreshAll() { await refreshStatus(); refreshPortfolio(); refreshJournal(); }
+
+// ---------------------------------------------------------------- auth
+async function send2fa() { try { const r = await api('/api/auth/2fa', { method: 'POST', body: JSON.stringify({ code: $('code2fa').value.trim() }) }); showBanner('ok', r.message); $('code2fa').value = ''; refreshAll(); } catch (e) { showBanner('bad', e.message); } }
+async function probeAuth() { try { await api('/api/auth/probe', { method: 'POST' }); showBanner('ok', 'Session déjà active.'); } catch (e) { } refreshStatus(); }
+
+// ---------------------------------------------------------------- instrument
+let searchTimer = null;
+$('search').addEventListener('input', () => { clearTimeout(searchTimer); const q = $('search').value.trim(); if (q.length < 2) { $('search-results').style.display = 'none'; return; } searchTimer = setTimeout(doSearch, 350); });
+async function doSearch() {
+  const q = $('search').value.trim(); if (/^[A-Z]{2}[A-Z0-9]{10}$/i.test(q)) { $('search-results').style.display = 'none'; return; }
+  try { const r = await api('/api/search?q=' + encodeURIComponent(q)); const box = $('search-results'); box.innerHTML = r.results.map(x => `<div onclick="selectIsin('${x.isin}','${x.name.replace(/'/g, '')}')"><b>${x.name}</b> <span class="muted">${x.isin} ${x.type || ''}</span></div>`).join('') || '<div class="muted">aucun résultat</div>'; box.style.display = 'block'; } catch (e) { }
+}
+function selectIsin(isin, name) { $('search').value = isin; $('search-results').style.display = 'none'; CUR = { isin, name }; document.querySelector('nav button[data-tab=inst]').click(); loadInstrument(); }
+async function loadInstrument() {
+  const isin = $('search').value.trim().toUpperCase(); if (!/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)) { showBanner('warn', 'Entrez un ISIN à 12 caractères ou choisissez un résultat.'); return; }
+  $('inst-head').textContent = 'chargement…';
+  try {
+    const d = await api(`/api/instrument/${isin}?range=${$('range').value}`);
+    CUR = { isin, name: d.name };
+    const p = d.price || {};
+    $('inst-head').innerHTML = `<b>${d.name}</b> <span class="muted">${isin}</span> · dernier <b>${fmt(p.last)}</b> · bid ${fmt(p.bid)} / ask ${fmt(p.ask)} (spread ${pct((p.spreadPercent || 0) / 100, 2)}) · marché : ${d.market ? (d.market.isOpen ? '<span class="up">ouvert</span>' : '<span class="down">' + d.market.status + '</span>') : '—'} · ${d.bars} barres`;
+    drawPrice(d);
+    const sg = d.current_signal;
+    $('inst-signal').innerHTML = `<span class="sig ${sg > 0 ? 'buy' : sg < 0 ? 'sell' : 'hold'}">${sg > 0 ? 'LONG' : sg < 0 ? 'SHORT' : 'NEUTRE / cash'}</span><div class="muted" style="margin-top:8px">RSI ${fmt(d.stats.rsi, 1)} · ATR ${fmt(d.stats.atr)} (${pct(d.stats.atr_pct)}) · vol annualisée ${pct(d.stats.vol_annual)} · perf 1 mois <span class="${cls(d.stats.ret_1m)}">${pct(d.stats.ret_1m)}</span></div><div class="muted">VaR 95 % par barre ${pct(d.stats.var_95, 2)} · Expected Shortfall ${pct(d.stats.es_95, 2)}</div>`;
+    const a = d.analysis;
+    $('inst-analysis').innerHTML = !a || a.error ? `<span class="muted">${a ? a.error : '—'}</span>` : `<span class="sig ${a.summary.overallSignal}">${a.summary.overallSignal.toUpperCase()}</span> confiance ${a.summary.confidence} % · score ${a.summary.score} · tendance ${a.trend.direction} (${a.trend.strength})<table style="margin-top:8px">${a.signals.map(s => `<tr><td>${s.indicator}</td><td class="${s.signal === 'buy' ? 'up' : s.signal === 'sell' ? 'down' : 'muted'}">${s.signal}</td><td class="muted">${s.reason}</td></tr>`).join('')}</table>`;
+    const sz = d.suggestion.sizing;
+    $('inst-risk').innerHTML = !sz ? '—' : `stop suggéré <b>${fmt(d.suggestion.stop)}</b> (${STATUS.risk.atr_stop_mult}×ATR)<br>taille suggérée : <b>${sz.qty}</b> titre(s) = ${fmt(sz.notional)} € · risque ${fmt(sz.risk_eur)} € · frais A/R ${fmt(sz.fee_round_trip)} €${sz.fee_pct_of_position != null ? ' = ' + pct(sz.fee_pct_of_position) + ' de la position' : ''}${sz.warnings.length ? '<div class="warn" style="margin-top:6px">⚠ ' + sz.warnings.join('<br>⚠ ') + '</div>' : ''}<div class="row" style="margin-top:8px"><button class="btn small" onclick="prefillOrder('${isin}', ${sz.qty})">Préparer l'ordre</button></div>`;
+    $('inst-news').innerHTML = '<button class="btn small" onclick="loadNews()">Charger</button>';
+    $('o-isin').value = isin; $('p-isin').value = isin;
+  } catch (e) { $('inst-head').innerHTML = `<span class="down">${e.message}</span>`; }
+}
+function drawPrice(d) {
+  const labels = d.ts.map(t => t.slice(0, 10));
+  const ds = (label, data, color, dash) => ({ label, data, borderColor: color, borderWidth: 1.2, pointRadius: 0, borderDash: dash || [], tension: 0.1, spanGaps: true });
+  const sigPts = d.signal.map((s, i) => s > 0 ? d.series.close[i] : null);
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart($('chart-price'), { type: 'line', data: { labels, datasets: [ds('Cours', d.series.close, '#e6e9ef'), ds('EMA rapide', d.series.ema_fast, '#4f8cff'), ds('EMA lente', d.series.ema_slow, '#f1c40f'), ds('Bollinger +', d.series.bb_upper, '#8a93a6', [4, 4]), ds('Bollinger −', d.series.bb_lower, '#8a93a6', [4, 4]), { label: 'en position (long)', data: sigPts, borderColor: 'rgba(46,204,113,0)', backgroundColor: 'rgba(46,204,113,.18)', fill: 'origin', pointRadius: 0 }] }, options: { animation: false, responsive: true, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: '#8a93a6', boxWidth: 10 } } }, scales: { x: { ticks: { color: '#8a93a6', maxTicksLimit: 10 }, grid: { color: '#2a3242' } }, y: { ticks: { color: '#8a93a6' }, grid: { color: '#2a3242' } } } } });
+}
+async function loadNews() {
+  if (!CUR) return; $('inst-news').textContent = 'chargement…';
+  const n = await api(`/api/instrument/${CUR.isin}/news`);
+  let h = '';
+  if (n.sentiment && !n.sentiment.error) h += `<div>sentiment news : <b class="${n.sentiment.overallDirection === 'positive' ? 'up' : n.sentiment.overallDirection === 'negative' ? 'down' : ''}">${n.sentiment.overallDirection}</b> (score ${n.sentiment.overallScore}, confiance ${n.sentiment.confidence})</div>`;
+  if (n.news && n.news.articles) h += '<ul style="padding-left:18px; margin:6px 0">' + n.news.articles.slice(0, 8).map(a => `<li><a href="${a.link || a.url || '#'}" target="_blank" style="color:var(--accent)">${a.title}</a> <span class="muted">${a.publisher || ''}</span></li>`).join('') + '</ul>';
+  else if (n.news && n.news.error) h += `<div class="muted">news : ${n.news.error}</div>`;
+  if (n.fundamentals && !n.fundamentals.error) { const f = n.fundamentals; const v = f.valuation || f; h += `<div class="muted">PER ${fmt(v.trailingPE ?? v.peRatio, 1)} · capitalisation ${fmt((f.marketCap ?? v.marketCap) / 1e9, 1)} Md · ${f.recommendation ? 'reco : ' + (f.recommendation.key || f.recommendation) : ''}</div>`; }
+  else if (n.fundamentals) h += `<div class="muted">fondamentaux : ${n.fundamentals.error}</div>`;
+  $('inst-news').innerHTML = h || '<span class="muted">rien</span>';
+}
+async function addToWatch() { const isin = $('search').value.trim().toUpperCase(); if (isin.length !== 12) return; await api('/api/watchlist', { method: 'POST', body: JSON.stringify({ isin, name: CUR && CUR.isin === isin ? CUR.name : null }) }); showBanner('ok', isin + ' ajouté à la watchlist'); refreshStatus(); }
+async function delWatch(isin) { await api('/api/watchlist/' + isin, { method: 'DELETE' }); refreshStatus(); }
+
+// ---------------------------------------------------------------- backtest
+async function runBacktest() {
+  if (!CUR) { showBanner('warn', 'Choisissez d\'abord un instrument.'); return; }
+  $('bt-metrics').textContent = 'calcul…';
+  try {
+    const b = await api('/api/backtest', { method: 'POST', body: JSON.stringify({ isin: CUR.isin, range: $('range').value, params: { ema_fast: +$('bt-fast').value, ema_slow: +$('bt-slow').value, min_votes: +$('bt-votes').value }, walkforward: $('bt-wf').checked, train_bars: +$('bt-train').value, test_bars: +$('bt-test').value }) });
+    const m = b.metrics;
+    const row = (lbl, m) => `<tr><td>${lbl}</td><td class="num ${cls(m.total_return)}">${pct(m.total_return)}</td><td class="num">${fmt(m.sharpe)}</td><td class="num">${fmt(m.sortino)}</td><td class="num down">${pct(m.max_drawdown)}</td><td class="num">${m.n_trades ?? 0}</td><td class="num">${pct(m.win_rate)}</td><td class="num">${fmt(m.total_fees)} €</td></tr>`;
+    let html = `<table><tr><th></th><th class="num">Rendement</th><th class="num">Sharpe</th><th class="num">Sortino</th><th class="num">Max DD</th><th class="num">Trades</th><th class="num">% gagnants</th><th class="num">Frais</th></tr>${row('In-sample (optimiste)', m)}`;
+    const bh = b.buy_hold[b.buy_hold.length - 1] / b.buy_hold[0] - 1;
+    html += `<tr><td>Buy & hold</td><td class="num ${cls(bh)}">${pct(bh)}</td><td colspan="6" class="muted">référence sans trading (1 achat = 1 € de frais)</td></tr>`;
+    if (b.walkforward) { if (b.walkforward.error) html += `<tr><td colspan="8" class="warn">walk-forward : ${b.walkforward.error}</td></tr>`; else { const w = b.walkforward.metrics; html += row('<b>Walk-forward OOS (honnête)</b>', w) + `<tr><td colspan="8" class="muted">${b.walkforward.windows.length} fenêtres · ratio Sharpe OOS/IS ${fmt(w.is_oos_ratio)} (≈1 robuste, ≪1 surapprentissage)</td></tr>`; } }
+    html += '</table>';
+    $('bt-metrics').innerHTML = html;
+    if (eqChart) eqChart.destroy();
+    const dsets = [{ label: 'Stratégie', data: b.equity, borderColor: '#4f8cff', borderWidth: 1.4, pointRadius: 0 }, { label: 'Buy & hold', data: b.buy_hold, borderColor: '#8a93a6', borderWidth: 1, pointRadius: 0, borderDash: [4, 4] }];
+    let labels = b.ts.map(t => t.slice(0, 10));
+    if (b.walkforward && !b.walkforward.error) { const idx = new Map(b.ts.map((t, i) => [t, i])); const wfData = new Array(b.ts.length).fill(null); b.walkforward.ts.forEach((t, i) => { if (idx.has(t)) wfData[idx.get(t)] = b.walkforward.equity[i]; }); dsets.push({ label: 'Walk-forward OOS', data: wfData, borderColor: '#2ecc71', borderWidth: 1.6, pointRadius: 0, spanGaps: true }); }
+    eqChart = new Chart($('chart-equity'), { type: 'line', data: { labels, datasets: dsets }, options: { animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: '#8a93a6', boxWidth: 10 } } }, scales: { x: { ticks: { color: '#8a93a6', maxTicksLimit: 10 }, grid: { color: '#2a3242' } }, y: { ticks: { color: '#8a93a6' }, grid: { color: '#2a3242' } } } } });
+    $('bt-trades').innerHTML = b.trades.length ? `<details><summary class="muted">${b.trades.length} trades</summary><table><tr><th>Entrée</th><th>Sortie</th><th class="num">Qté</th><th class="num">Prix E</th><th class="num">Prix S</th><th class="num">P&L</th><th>Motif</th></tr>${b.trades.map(t => `<tr><td>${(t.entry_ts || '').slice(0, 10)}</td><td>${(t.exit_ts || '').slice(0, 10)}</td><td class="num">${fmt(t.qty, 2)}</td><td class="num">${fmt(t.entry)}</td><td class="num">${fmt(t.exit)}</td><td class="num ${cls(t.pnl)}">${fmt(t.pnl)} €</td><td>${t.reason}</td></tr>`).join('')}</table></details>` : '<span class="muted">aucun trade</span>';
+  } catch (e) { $('bt-metrics').innerHTML = `<span class="down">${e.message}</span>`; }
+}
+
+// ---------------------------------------------------------------- autopilote & risque
+async function setMode(dry) { await api('/api/settings', { method: 'POST', body: JSON.stringify({ dry_run: dry }) }); refreshAll(); }
+async function confirmLive() {
+  const ok = await openModal('Passer en mode RÉEL ?', `<p>Les ordres seront envoyés à Trade Republic avec votre argent réel. L'autopilote, s'il est activé, tradera seul.</p><p>Frais : 1 € par ordre. Kill switch à −${STATUS.risk.max_daily_loss_pct * 100} % par jour.</p><p><b>Tapez REEL pour confirmer :</b> <input id="live-confirm" style="width:90px"></p>`);
+  if (ok && document.getElementById('live-confirm').value === 'REEL') setMode(false); else { document.querySelector('input[name=mode][value=paper]').checked = true; }
+}
+async function resetPaper() { await api('/api/settings', { method: 'POST', body: JSON.stringify({ paper_reset: +$('paper-cash').value }) }); refreshAll(); }
+async function toggleHalt() { await api('/api/settings', { method: 'POST', body: JSON.stringify({ halted: !STATUS.halted, autopilot: STATUS.halted ? {} : { enabled: false } }) }); refreshAll(); }
+async function saveRisk() {
+  try { await api('/api/settings', { method: 'POST', body: JSON.stringify({ risk: { capital: +$('r-capital').value, risk_per_trade: +$('r-risk').value / 100, max_position_pct: +$('r-maxpos').value / 100, max_daily_loss_pct: +$('r-daily').value / 100, atr_stop_mult: +$('r-atr').value, fees_in_risk: $('r-fees').checked, trailing_stop: $('r-trail').checked, max_positions: +$('r-maxn').value } }) }); showBanner('ok', 'Règles de risque enregistrées'); refreshStatus(); } catch (e) { showBanner('bad', e.message); }
+}
+async function saveAutopilot() {
+  const enabled = $('ap-enabled').checked;
+  if (enabled && STATUS && !STATUS.dry_run) { const ok = await openModal('Activer l\'autopilote en RÉEL ?', '<p>Le bot passera des ordres seul, à chaque cycle, sur toute la watchlist.</p>'); if (!ok) { $('ap-enabled').checked = false; return; } }
+  await api('/api/settings', { method: 'POST', body: JSON.stringify({ autopilot: { enabled, interval_min: +$('ap-interval').value, range: $('ap-range').value, params: { ema_fast: +$('ap-fast').value, ema_slow: +$('ap-slow').value, min_votes: +$('ap-votes').value, rsi_max_entry: +$('ap-rsi').value } } }) });
+  showBanner('ok', 'Autopilote enregistré'); refreshStatus();
+}
+async function runCycle() { $('ap-status').textContent = 'cycle en cours…'; try { const r = await api('/api/autopilot/run', { method: 'POST' }); $('ap-status').innerHTML = '<pre>' + JSON.stringify(r, null, 1) + '</pre>'; refreshAll(); } catch (e) { $('ap-status').innerHTML = `<span class="down">${e.message}</span>`; } }
+
+// ---------------------------------------------------------------- ordres
+$('o-mode').onchange = () => $('o-limit').style.display = $('o-mode').value === 'limit' ? '' : 'none';
+function prefillOrder(isin, qty) { $('o-isin').value = isin; $('o-qty').value = qty; $('o-side').value = 'buy'; document.querySelector('nav button[data-tab=orders]').click(); }
+async function placeOrder() {
+  const body = { isin: $('o-isin').value.trim().toUpperCase(), side: $('o-side').value, qty: +$('o-qty').value, mode: $('o-mode').value, limit_price: $('o-mode').value === 'limit' ? +$('o-limit').value : null, confirm: true };
+  const ok = await openModal((STATUS.dry_run ? '[PAPIER] ' : '[RÉEL] ') + 'Confirmer l\'ordre', `<p>${body.side === 'buy' ? 'ACHAT' : 'VENTE'} de <b>${body.qty}</b> × ${body.isin} (${body.mode}${body.limit_price ? ' @ ' + body.limit_price : ''})</p><p class="muted">Frais : 1 €.</p>`);
+  if (!ok) return;
+  try { const r = await api('/api/orders', { method: 'POST', body: JSON.stringify(body) }); showBanner('ok', 'Ordre ' + (r.status || 'envoyé') + ' · ' + (r.orderId || '')); refreshAll(); loadOrders(); } catch (e) { showBanner('bad', e.message); }
+}
+async function loadOrders() {
+  try { const o = await api('/api/orders'); if (o.dry_run) $('orders').innerHTML = o.orders.length ? '<table>' + o.orders.map(x => `<tr><td class="muted">${new Date(x.ts).toLocaleString('fr-FR')}</td><td>${x.msg}</td></tr>`).join('') + '</table>' : '<span class="muted">aucun ordre papier</span>';
+    else $('orders').innerHTML = o.orders && o.orders.length ? '<table><tr><th>Date</th><th>ISIN</th><th>Type</th><th class="num">Qté</th><th>Statut</th><th></th></tr>' + o.orders.map(x => `<tr><td class="muted">${(x.createdAt || '').slice(0, 16)}</td><td>${x.isin}</td><td>${x.orderType} ${x.mode}${x.limitPrice ? ' @' + x.limitPrice : ''}</td><td class="num">${x.size}</td><td>${x.status}</td><td>${/pending|open|placed/i.test(x.status) ? `<button class="btn small" onclick="cancelOrder('${x.orderId}')">annuler</button>` : ''}</td></tr>`).join('') + '</table>' : '<span class="muted">aucun ordre</span>'; }
+  catch (e) { $('orders').innerHTML = `<span class="muted">${e.message}</span>`; }
+}
+async function cancelOrder(id) { if (!await openModal('Annuler l\'ordre ?', id)) return; try { await api('/api/orders/' + id, { method: 'DELETE' }); loadOrders(); } catch (e) { showBanner('bad', e.message); } }
+async function loadPlans() {
+  try { const p = await api('/api/savings-plans'); const plans = p.savingsPlans || p.plans || []; $('plans').innerHTML = plans.length ? '<table><tr><th>ISIN</th><th class="num">Montant</th><th>Fréquence</th><th>Statut</th><th>Prochaine</th><th></th></tr>' + plans.map(x => `<tr><td>${x.isin}</td><td class="num">${fmt(x.amount)} €</td><td>${x.interval}</td><td>${x.status || ''}</td><td class="muted">${x.nextExecutionDate || x.startDate || ''}</td><td><button class="btn small" onclick="cancelPlan('${x.id}')">✕</button></td></tr>`).join('') + '</table>' : '<span class="muted">aucun plan d\'épargne</span>'; }
+  catch (e) { $('plans').innerHTML = `<span class="muted">${e.message}</span>`; }
+}
+async function createPlan() {
+  const body = { isin: $('p-isin').value.trim().toUpperCase(), amount: +$('p-amount').value, interval: $('p-int').value, confirm: true };
+  if (!await openModal((STATUS.dry_run ? '[PAPIER] ' : '[RÉEL] ') + 'Créer le plan d\'épargne ?', `<p><b>${body.amount} €</b> ${body.interval} sur ${body.isin} — 0 € de frais.</p>`)) return;
+  try { await api('/api/savings-plans', { method: 'POST', body: JSON.stringify(body) }); showBanner('ok', 'Plan créé'); loadPlans(); refreshJournal(); } catch (e) { showBanner('bad', e.message); }
+}
+async function cancelPlan(id) { if (!await openModal('Annuler le plan ?', id)) return; try { await api('/api/savings-plans/' + id, { method: 'DELETE' }); loadPlans(); } catch (e) { showBanner('bad', e.message); } }
+
+refreshAll(); setInterval(refreshStatus, 15000); setInterval(refreshJournal, 20000);
+document.addEventListener('click', (e) => { if (!e.target.closest('#search-results') && e.target.id !== 'search') $('search-results').style.display = 'none'; });
+</script>
+</body>
+</html>

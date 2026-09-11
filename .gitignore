@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+data/*.db
+data/*.json
+data/*.csv
+data/*.parquet
+!data/.gitkeep
+reports/
+*.log
+vendor/trade-republic-mcp-server/.env
+data/web_state.json

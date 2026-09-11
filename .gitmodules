@@ -1,0 +1,3 @@
+[submodule "vendor/trade-republic-mcp-server"]
+	path = vendor/trade-republic-mcp-server
+	url = https://github.com/momolas/trade-republic-mcp-server

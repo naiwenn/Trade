@@ -1,0 +1,13 @@
+services:
+  tradebot:
+    build: .
+    container_name: tradebot
+    restart: unless-stopped
+    # Identifiants Trade Republic : dans un fichier .env À LA RACINE (jamais committé)
+    env_file: .env
+    environment:
+      - TZ=Europe/Paris
+    volumes:
+      - ./data:/app/data            # état, journal, base SQLite
+    ports:
+      - "127.0.0.1:8080:8080"       # interface accessible uniquement en local ; utilisez un tunnel SSH

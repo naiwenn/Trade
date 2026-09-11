@@ -1,0 +1,21 @@
+# /etc/systemd/system/tradebot.service  — VPS Debian/Ubuntu
+# sudo systemctl daemon-reload && sudo systemctl enable --now tradebot
+[Unit]
+Description=Tradebot (serveur MCP Trade Republic + interface web)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tradebot
+WorkingDirectory=/opt/tradebot
+ExecStart=/opt/tradebot/scripts/start.sh
+Restart=on-failure
+RestartSec=15
+Environment=WEB_HOST=127.0.0.1
+Environment=WEB_PORT=8080
+Environment=MCP_PORT=3006
+Environment=TZ=Europe/Paris
+
+[Install]
+WantedBy=multi-user.target
